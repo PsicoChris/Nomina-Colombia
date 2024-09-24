@@ -94,7 +94,7 @@ elif tipo_de_salario == 1:
         print("Su salario es: ")
         print(salario_final)
 else:
-    print("ESTA ESE NÚMERO EN LAS OPCIONES O QUE GONO*****")
+    print("No esta esta opción")
 
 
 
