@@ -1,182 +1,241 @@
-import os
+import customtkinter as ctk
 
-def calcular_retencion_dian_2026(salario_bruto, tipo_contrato, dependientes=False, 
-                                 medicina_prepagada=0, intereses_vivienda=0, 
-                                 pension_voluntaria_afc=0):
-    """
-    Calcula la retención en la fuente real en Colombia (2026) aplicando la depuración de base.
-    """
-    # 1. Datos Legales para 2026
-    UVT = 52374
-    SMLMV = 1750905
-    AUX_TRANSPORTE = 249095
-    
-    # Tipo de salário + lógica según salario
-    es_integral = tipo_contrato == 1 and salario_bruto >= (13 * SMLMV)
-    ingreso_base_calculo = salario_bruto * 0.70 if es_integral else salario_bruto
+ctk.set_appearance_mode("System")  
+ctk.set_default_color_theme("blue")  
 
-    # 2. Ingresos No Constitutivos de Renta (Seguridad Social Obligatoria)
-    if tipo_contrato == 1:  # Nominal / Dependiente
-        ibc = min(ingreso_base_calculo, 25 * SMLMV)
-        salud_obligatoria = ibc * 0.04
-        pension_obligatoria = ibc * 0.04
-        solidaridad = ibc * 0.01 if salario_bruto >= (4 * SMLMV) else 0
-        total_ingresos_no_renta = salud_obligatoria + pension_obligatoria + solidaridad
-        auxilio_recibido = AUX_TRANSPORTE if salario_bruto <= (2 * SMLMV) else 0
-    else:  # Prestación de Servicios / Independiente
-        ibc = max(min(salario_bruto * 0.40, 25 * SMLMV), SMLMV)
-        total_ingresos_no_renta = ibc * 0.285
-        auxilio_recibido = 0
+class AppNomina(ctk.CTk):
+    def __init__(self):
+        super().__init__()
 
-    # Subtotal 1: Base sobre la cual se calcula el límite del 40%
-    subtotal_1 = salario_bruto - total_ingresos_no_renta
 
-    # 3. Deducciones Certificadas (Con sus respectivos topes mensuales en UVT)
-    deduccion_dependientes = min(ingreso_base_calculo * 0.10, 32 * UVT) if dependientes else 0
-    deduccion_prepagada = min(medicina_prepagada, 16 * UVT)
-    deduccion_vivienda = min(intereses_vivienda, 100 * UVT)
-    
-    total_deducciones = deduccion_dependientes + deduccion_prepagada + deduccion_vivienda
+        self.title("Calculadora de Nómina Profesional Colombia (2026)")
+        self.geometry("850x620")
+        self.resizable(False, False)
 
-    # 4. Rentas Exentas
-    renta_exenta_afc = min(pension_voluntaria_afc, ingreso_base_calculo * 0.30, 316.6 * UVT)
-    
-    base_para_exenta_25 = subtotal_1 - total_deducciones - renta_exenta_afc
-    renta_exenta_25 = min(base_para_exenta_25 * 0.25, 65.8 * UVT) if base_para_exenta_25 > 0 else 0
+        self.tipo_contrato = ctk.IntVar(value=1)
+        self.tiene_dependientes = ctk.BooleanVar(value=False)
+        self.tiene_prepagada = ctk.BooleanVar(value=False)
+        self.tiene_vivienda = ctk.BooleanVar(value=False)
+        self.tiene_afc = ctk.BooleanVar(value=False)
 
-    # 5. Aplicación del Límite Global del 40%
-    total_beneficios_solicitados = total_deducciones + renta_exenta_afc + renta_exenta_25
-    limite_40_porciento = subtotal_1 * 0.40
-    tope_maximo_40 = 111.6 * UVT
-    limite_global_permitido = min(limite_40_porciento, tope_maximo_40)
+        self.texto_salario_var = ctk.StringVar()
+        self.texto_salario_var.trace_add("write", self.formatear_salario_en_vivo)
 
-    beneficios_reales = min(total_beneficios_solicitados, limite_global_permitido)
+        # interfaz
+        self.titulo = ctk.CTkLabel(self, text="SIMULADOR DE NÓMINA Y RETENCIÓN 2026", font=ctk.CTkFont(size=20, weight="bold"))
+        self.titulo.pack(pady=15)
 
-    # 6. Base Gravable Final (En Pesos y convertida a UVT)
-    base_gravable_pesos = subtotal_1 - beneficios_reales
-    base_gravable_uvt = max(0.0, base_gravable_pesos / UVT)
+        self.main_container = ctk.CTkFrame(self, fg_color="transparent")
+        self.main_container.pack(fill="both", expand=True, padx=20, pady=20)
 
-    # 7. Tabla de Retención en la Fuente (Art. 383 del Estatuto Tributario)
-    if base_gravable_uvt <= 95:
-        tarifa = "0%"
-        impuesto_uvt = 0
-    elif base_gravable_uvt <= 150:
-        tarifa = "19%"
-        impuesto_uvt = (base_gravable_uvt - 95) * 0.19
-    elif base_gravable_uvt <= 360:
-        tarifa = "28%"
-        impuesto_uvt = (base_gravable_uvt - 150) * 0.28 + 10
-    elif base_gravable_uvt <= 640:
-        tarifa = "33%"
-        impuesto_uvt = (base_gravable_uvt - 360) * 0.33 + 69
-    elif base_gravable_uvt <= 945:
-        tarifa = "35%"
-        impuesto_uvt = (base_gravable_uvt - 640) * 0.35 + 162
-    elif base_gravable_uvt <= 2300:
-        tarifa = "37%"
-        impuesto_uvt = (base_gravable_uvt - 945) * 0.37 + 268
-    else:
-        tarifa = "39%"
-        impuesto_uvt = (base_gravable_uvt - 2300) * 0.39 + 770
+        self.crear_columna_izquierda()
+        self.crear_columna_derecha()
 
-    retencion_final_pesos = impuesto_uvt * UVT
-    salario_neto = (salario_bruto - total_ingresos_no_renta - retencion_final_pesos) + auxilio_recibido
+    def crear_columna_izquierda(self):
+        self.frame_inputs = ctk.CTkFrame(self.main_container, width=420)
+        self.frame_inputs.pack(side="left", fill="both", expand=True, padx=(0, 10))
 
-    return {
-        "salario_bruto": salario_bruto,
-        "es_integral": es_integral,
-        "tipo_contrato": "Nominal" if tipo_contrato == 1 else "Prestación de Servicios",
-        "seguridad_social": total_ingresos_no_renta,
-        "auxilio_transporte": auxilio_recibido,
-        "deducciones_aplicadas": total_deducciones,
-        "rentas_exentas_aplicadas": renta_exenta_afc + renta_exenta_25,
-        "limite_40_activado": total_beneficios_solicitados > limite_global_permitido,
-        "base_uvt": base_gravable_uvt,
-        "tarifa_retencion": tarifa,
-        "retencion_fuente": round(retencion_final_pesos),
-        "salario_neto": round(salario_neto)
-    }
-
-def ejecutar_interfaz():
-    print("=============================================")
-    print("   CALCULADORA DE NÓMINA COLOMBIA (2026)    ")
-    print("=============================================\n")
-    
-    try:
-        # Captura de datos básicos
-        salario = float(input("1. Ingresa tu salario mensual bruto: $"))
-        print("\n2. Selecciona el tipo de contrato:")
-        print("   [1] Salario Nominal (Empleado dependiente)")
-        print("   [2] Prestación de Servicios (Independiente)")
-        tipo_contrato = int(input("   > Elige (1 o 2): "))
+        # Sección 1: Datos Básicos
+        ctk.CTkLabel(self.frame_inputs, text="1. Datos Básicos", font=ctk.CTkFont(size=14, weight="bold")).pack(anchor="w", padx=15, pady=(10, 5))
         
-        if tipo_contrato not in [1, 2]:
-            print("Opción inválida. Saliendo...")
+        ctk.CTkLabel(self.frame_inputs, text="Salario Mensual Bruto ($):").pack(anchor="w", padx=25)
+        
+        # Asignamos la variable con rastreo al Entry de salario
+        self.entry_salario = ctk.CTkEntry(self.frame_inputs, textvariable=self.texto_salario_var, placeholder_text="Ej: 3'000.000", width=350)
+        self.entry_salario.pack(anchor="w", padx=25, pady=(0, 10))
+
+        ctk.CTkLabel(self.frame_inputs, text="Tipo de Contrato:").pack(anchor="w", padx=25)
+        self.radio_nominal = ctk.CTkRadioButton(self.frame_inputs, text="Salario Nominal (Dependiente)", variable=self.tipo_contrato, value=1)
+        self.radio_nominal.pack(anchor="w", padx=35, pady=2)
+        self.radio_servicios = ctk.CTkRadioButton(self.frame_inputs, text="Prestación de Servicios (Independiente)", variable=self.tipo_contrato, value=2)
+        self.radio_servicios.pack(anchor="w", padx=35, pady=(2, 15))
+
+        # Sección 2: Casos Especiales / Deducciones
+        ctk.CTkLabel(self.frame_inputs, text="2. Casos Especiales (Deducciones)", font=ctk.CTkFont(size=14, weight="bold")).pack(anchor="w", padx=15, pady=(5, 5))
+
+        self.switch_dep = ctk.CTkSwitch(self.frame_inputs, text="¿Tiene dependientes económicos?", variable=self.tiene_dependientes)
+        self.switch_dep.pack(anchor="w", padx=25, pady=5)
+
+        self.switch_prep = ctk.CTkSwitch(self.frame_inputs, text="¿Paga Medicina Prepagada?", variable=self.tiene_prepagada, command=self.toggle_prepagada)
+        self.switch_prep.pack(anchor="w", padx=25, pady=5)
+        self.entry_prep = ctk.CTkEntry(self.frame_inputs, placeholder_text="Monto mensual pagado", width=350, state="disabled")
+        self.entry_prep.pack(anchor="w", padx=45, pady=(0, 5))
+
+        self.switch_viv = ctk.CTkSwitch(self.frame_inputs, text="¿Paga intereses de Vivienda/Leasing?", variable=self.tiene_vivienda, command=self.toggle_vivienda)
+        self.switch_viv.pack(anchor="w", padx=25, pady=5)
+        self.entry_viv = ctk.CTkEntry(self.frame_inputs, placeholder_text="Monto mensual de intereses", width=350, state="disabled")
+        self.entry_viv.pack(anchor="w", padx=45, pady=(0, 5))
+
+        self.switch_afc = ctk.CTkSwitch(self.frame_inputs, text="¿Aporta a cuentas AFC / Pensión Voluntaria?", variable=self.tiene_afc, command=self.toggle_afc)
+        self.switch_afc.pack(anchor="w", padx=25, pady=5)
+        self.entry_afc = ctk.CTkEntry(self.frame_inputs, placeholder_text="Monto mensual aportado", width=350, state="disabled")
+        self.entry_afc.pack(anchor="w", padx=45, pady=(0, 15))
+
+        self.btn_calcular = ctk.CTkButton(self.frame_inputs, text="Calcular Nómina con 1 Clic", font=ctk.CTkFont(size=14, weight="bold"), height=40, command=self.procesar_calculo)
+        self.btn_calcular.pack(fill="x", padx=25, pady=10)
+
+    def crear_columna_derecha(self):
+        self.frame_resultados = ctk.CTkFrame(self.main_container, width=390, fg_color=("#EAEAEA", "#2B2B2B"))
+        self.frame_resultados.pack(side="right", fill="both", expand=True, padx=(10, 0))
+
+        ctk.CTkLabel(self.frame_resultados, text="Resumen de Liquidación", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=15)
+
+        self.lbl_contrato = self.crear_item_resultado("Tipo Contrato:", "-")
+        self.lbl_bruto = self.crear_item_resultado("Salario Bruto:", "$0")
+        self.lbl_ss = self.crear_item_resultado("Seguridad Social:", "$0")
+        self.lbl_transporte = self.crear_item_resultado("Auxilio Transporte:", "$0")
+        self.lbl_deduc = self.crear_item_resultado("Deducciones Aplicadas:", "$0")
+        self.lbl_exent = self.crear_item_resultado("Rentas Exentas:", "$0")
+        self.lbl_retencion = self.crear_item_resultado("RETENCIÓN FUENTE:", "$0", resaltar_valor=True)
+        
+        ctk.CTkFrame(self.frame_resultados, height=2, fg_color="gray").pack(fill="x", padx=30, pady=15)
+
+        self.lbl_neto_titulo = ctk.CTkLabel(self.frame_resultados, text="NETO ESTIMADO A RECIBIR:", font=ctk.CTkFont(size=14, weight="bold"))
+        self.lbl_neto_titulo.pack()
+        self.lbl_neto_valor = ctk.CTkLabel(self.frame_resultados, text="$0", font=ctk.CTkFont(size=24, weight="bold"), text_color="green")
+        self.lbl_neto_valor.pack(pady=5)
+
+        self.lbl_alerta = ctk.CTkLabel(self.frame_resultados, text="", text_color="orange", font=ctk.CTkFont(size=11, weight="bold"))
+        self.lbl_alerta.pack(pady=10, padx=20)
+
+    def crear_item_resultado(self, texto_izq, valor_der, resaltar_valor=False):
+        f = ctk.CTkFrame(self.frame_resultados, fg_color="transparent")
+        f.pack(fill="x", padx=30, pady=3)
+        ctk.CTkLabel(f, text=texto_izq, font=ctk.CTkFont(size=12)).pack(side="left")
+        
+        font_valor = ctk.CTkFont(size=12, weight="bold") if resaltar_valor else ctk.CTkFont(size=12)
+        color_valor = "#FF5555" if resaltar_valor else None
+        
+        lbl_val = ctk.CTkLabel(f, text=valor_der, font=font_valor, text_color=color_valor)
+        lbl_val.pack(side="right")
+        return lbl_val
+# formato número
+
+    def formatear_salario_en_vivo(self, *args):
+        texto_original = self.texto_salario_var.get()
+        solo_numeros = "".join([c for c in texto_original if c.isdigit()])
+        
+        if not solo_numeros:
             return
+        solo_numeros = solo_numeros[:12]
+        valor_int = int(solo_numeros)
+        formato_comas = f"{valor_int:,}"
+        formato_final = formato_comas.replace(",", ".")
+        
 
-        print("\n--- CASOS ESPECIALES (DEDUCCIONES) ---")
+        if len(solo_numeros) >= 7:
+            partes = formato_final.split(".")
+            if len(partes) == 3:
+                formato_final = f"{partes[0]}'{partes[1]}.{partes[2]}"
+            elif len(partes) == 4:
+                formato_final = f"{partes[0]}.{partes[1]}'{partes[2]}.{partes[3]}"
+
+        # 3. Guardar temporalmente la posición del cursor para que no brinque al inicio
+        posicion_cursor = self.entry_salario.index(ctk.INSERT)
         
-        # Caso especial 1: Dependientes
-        dep_input = input("¿Tienes dependientes económicos? (s/n): ").strip().lower()
-        tiene_dependientes = dep_input == 's'
-        
-        # Caso especial 2: Medicina Prepagada (¡Modificado!)
-        pag_prepagada = input("¿Pagas medicina prepagada o planes privados de salud? (s/n): ").strip().lower()
-        if pag_prepagada == 's':
-            prepagada = float(input("   > ¿Cuánto pagas mensualmente?: $"))
-        else:
-            prepagada = 0.0  # Si dice que no, automáticamente es cero
-        
-        # Caso especial 3: Intereses Vivienda
-        pag_vivienda = input("¿Pagas intereses por crédito de vivienda o leasing? (s/n): ").strip().lower()
-        if pag_vivienda == 's':
-            vivienda = float(input("   > ¿Cuánto pagas mensualmente en intereses?: $"))
-        else:
-            vivienda = 0.0
+        # Desactivar el rastreo un segundo para evitar bucles infinitos al setear el valor corregido
+        self.texto_salario_var.trace_remove("write", self.texto_salario_var.trace_info()[0][1])
+        self.texto_salario_var.set(formato_final)
+        self.texto_salario_var.trace_add("write", self.formatear_salario_en_vivo)
+
+    def toggle_prepagada(self):
+        self.entry_prep.configure(state="normal" if self.tiene_prepagada.get() else "disabled")
+        if not self.tiene_prepagada.get(): self.entry_prep.delete(0, 'end')
+
+    def toggle_vivienda(self):
+        self.entry_viv.configure(state="normal" if self.tiene_vivienda.get() else "disabled")
+        if not self.tiene_vivienda.get(): self.entry_viv.delete(0, 'end')
+
+    def toggle_afc(self):
+        self.entry_afc.configure(state="normal" if self.tiene_afc.get() else "disabled")
+        if not self.tiene_afc.get(): self.entry_afc.delete(0, 'end')
+
+
+    def procesar_calculo(self):
+        try:
+            salario_limpio = self.entry_salario.get().replace("'", "").replace(".", "")
+            if not salario_limpio:
+                self.lbl_alerta.configure(text="❌ Error: Ingresa un salario válido.")
+                return
             
-        # Caso especial 4: AFC / Pensión voluntaria
-        hace_afc = input("¿Haces aportes mensuales a cuentas AFC o Pensión Voluntaria? (s/n): ").strip().lower()
-        if hace_afc == 's':
-            afc = float(input("   > ¿Cuánto aportas mensualmente?: $"))
-        else:
-            afc = 0.0
-
-        # Procesar cálculos
-        res = calcular_retencion_dian_2026(
-            salario_bruto=salario,
-            tipo_contrato=tipo_contrato,
-            dependientes=tiene_dependientes,
-            medicina_prepagada=prepagada,
-            intereses_vivienda=vivienda,
-            pension_voluntaria_afc=afc
-        )
-
-        # Mostrar resultados formateados
-        print("\n" + "="*45)
-        print("              RESULTADOS DEL CÁLCULO          ")
-        print("="*45)
-        print(f"Tipo de Contrato:      {res['tipo_contrato']}")
-        if res['es_integral']:
-            print("⚠️ Nota: Aplica Ley de Salario Integral (Base al 70%)")
-        print(f"Salario Bruto Inicial: ${res['salario_bruto']:,.2f}")
-        print(f"Auxilio de Transporte: ${res['auxilio_transporte']:,.2f}")
-        print(f"Descuento Seg. Social: ${res['seguridad_social']:,.2f}")
-        print("-"*45)
-        print(f"Deducciones Aplicadas: ${res['deducciones_aplicadas']:,.2f}")
-        print(f"Rentas Exentas Real:   ${res['rentas_exentas_aplicadas']:,.2f}")
-        
-        if res['limite_40_activado']:
-            print("⚠️ ¡Tope Ley del 40% superado! Las deducciones se limitaron al máximo legal.")
+            salario_bruto = float(salario_limpio)
             
-        print(f"Base Líquida en UVT:   {res['base_uvt']:.2f} UVT")
-        print(f"Rango de Impuesto:     {res['tarifa_retencion']}")
-        print(f"RETENCIÓN EN FUENTE:   ${res['retencion_fuente']:,.2f}")
-        print("="*45)
-        print(f"💰 NETO A RECIBIR:     ${res['salario_neto']:,.2f}")
-        print("="*45)
+            prepagada = float(self.entry_prep.get()) if (self.tiene_prepagada.get() and self.entry_prep.get()) else 0.0
+            vivienda = float(self.entry_viv.get()) if (self.tiene_vivienda.get() and self.entry_viv.get()) else 0.0
+            afc = float(self.entry_afc.get()) if (self.tiene_afc.get() and self.entry_afc.get()) else 0.0
+            dependientes = self.tiene_dependientes.get()
+            tipo_contrato = self.tipo_contrato.get()
 
-    except ValueError:
-        print("\n❌ Error: Por favor ingresa valores numéricos válidos en los montos.")
+            # --- ALGORITMO LEY DE COLOMBIA 2026 ---
+            UVT = 52374
+            SMLMV = 1750905
+            AUX_TRANSPORTE = 249095
+
+            es_integral = tipo_contrato == 1 and salario_bruto >= (13 * SMLMV)
+            ingreso_base_calculo = salario_bruto * 0.70 if es_integral else salario_bruto
+
+            if tipo_contrato == 1:
+                ibc = min(ingreso_base_calculo, 25 * SMLMV)
+                total_ingresos_no_renta = (ibc * 0.04) + (ibc * 0.04) + (ibc * 0.01 if salario_bruto >= (4 * SMLMV) else 0)
+                auxilio_recibido = AUX_TRANSPORTE if salario_bruto <= (2 * SMLMV) else 0
+            else:
+                ibc = max(min(salario_bruto * 0.40, 25 * SMLMV), SMLMV)
+                total_ingresos_no_renta = ibc * 0.285
+                auxilio_recibido = 0
+
+            subtotal_1 = salario_bruto - total_ingresos_no_renta
+            deduccion_dependientes = min(ingreso_base_calculo * 0.10, 32 * UVT) if dependientes else 0
+            deduccion_prepagada = min(prepagada, 16 * UVT)
+            deduccion_vivienda = min(vivienda, 100 * UVT)
+            total_deducciones = deduccion_dependientes + deduccion_prepagada + deduccion_vivienda
+
+            renta_exenta_afc = min(afc, ingreso_base_calculo * 0.30, 316.6 * UVT)
+            base_para_exenta_25 = subtotal_1 - total_deducciones - renta_exenta_afc
+            renta_exenta_25 = min(base_para_exenta_25 * 0.25, 65.8 * UVT) if base_para_exenta_25 > 0 else 0
+
+            total_beneficios_solicitados = total_deducciones + renta_exenta_afc + renta_exenta_25
+            limite_global_permitido = min(subtotal_1 * 0.40, 111.6 * UVT)
+            beneficios_reales = min(total_beneficios_solicitados, limite_global_permitido)
+
+            base_gravable_uvt = max(0.0, (subtotal_1 - beneficios_reales) / UVT)
+
+            # Rangos de la DIAN Art. 383
+            if base_gravable_uvt <= 95:
+                tarifa, imp_uvt = "0%", 0
+            elif base_gravable_uvt <= 150:
+                tarifa, imp_uvt = "19%", (base_gravable_uvt - 95) * 0.19
+            elif base_gravable_uvt <= 360:
+                tarifa, imp_uvt = "28%", (base_gravable_uvt - 150) * 0.28 + 10
+            elif base_gravable_uvt <= 640:
+                tarifa, imp_uvt = "33%", (base_gravable_uvt - 360) * 0.33 + 69
+            elif base_gravable_uvt <= 945:
+                tarifa, imp_uvt = "35%", (base_gravable_uvt - 640) * 0.35 + 162
+            elif base_gravable_uvt <= 2300:
+                tarifa, imp_uvt = "37%", (base_gravable_uvt - 945) * 0.37 + 268
+            else:
+                tarifa, imp_uvt = "39%", (base_gravable_uvt - 2300) * 0.39 + 770
+
+            retencion_pesos = imp_uvt * UVT
+            salario_neto = (salario_bruto - total_ingresos_no_renta - retencion_pesos) + auxilio_recibido
+
+           
+            self.lbl_contrato.configure(text="Nominal" if tipo_contrato == 1 else "Prestación Servicios")
+            self.lbl_bruto.configure(text=f"${salario_bruto:,.0f}".replace(",", "."))
+            self.lbl_ss.configure(text=f"${total_ingresos_no_renta:,.0f}".replace(",", "."))
+            self.lbl_transporte.configure(text=f"${auxilio_recibido:,.0f}".replace(",", "."))
+            self.lbl_deduc.configure(text=f"${total_deducciones:,.0f}".replace(",", "."))
+            self.lbl_exent.configure(text=f"${(renta_exenta_afc + renta_exenta_25):,.0f}".replace(",", "."))
+            self.lbl_retencion.configure(text=f"${retencion_pesos:,.0f} ({tarifa})".replace(",", "."))
+            self.lbl_neto_valor.configure(text=f"${salario_neto:,.0f}".replace(",", "."))
+
+            if total_beneficios_solicitados > limite_global_permitido:
+                self.lbl_alerta.configure(text="⚠️ Alerta: Se superó el tope legal del 40%\nde exenciones y fue recortado por ley.")
+            else:
+                self.lbl_alerta.configure(text="")
+
+        except ValueError:
+            self.lbl_alerta.configure(text="❌ Error: Revisa que los datos ingresados sean correctos.")
 
 if __name__ == "__main__":
-    ejecutar_interfaz()
+    app = AppNomina()
+    app.mainloop()
