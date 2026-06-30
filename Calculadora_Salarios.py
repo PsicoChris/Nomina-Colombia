@@ -1,101 +1,72 @@
-salario = int(input("ingresa tu salario"))
+def calcular_nomina_colombia():
+    print("=== SIMULADOR DE NÓMINA COLOMBIA 2026 ===\n")
+    
+    SMLMV = 1750905
+    AUX_TRANSPORTE = 249095
+    UVT = 52374
+    
+    salario = float(input("Ingresa tu salario mensual bruto (COP): "))
+    tipo_de_salario = int(input("Ingresa:\n[1] Salario Nominal (Dependiente)\n[2] Prestación de Servicios (Independiente)\n> "))
 
 
-salario_minimo = 1160000
-auxilio_transporte = 140606
-uvt = 42412
-base_impuestos = float(salario/uvt)
-ibc = (salario*40)/100
-salud_pension = 28.5/100
-cotizacion = ibc*salud_pension
-salario_cotizado = salario-cotizacion
+    if tipo_de_salario == 2:
+        ibc = salario * 0.40
+        if ibc < SMLMV:
+            ibc = SMLMV
+        
 
-
-tipo_de_salario = int(input("Ingresa 1 para salario nominal y 2 para salario por prestación de servicios"))
-
-
-
-if ibc < 1160000:
-    ibc = 1160000
-else:
-    ibc = ibc
-
-
-
-if tipo_de_salario == 2:
-    if base_impuestos <= 95:
-        print("El impuesto es de 0%")
-        print("Su salario final es: ")
-        print(salario_cotizado)
-    elif base_impuestos > 95 and base_impuestos <= 150: 
-        salario_final = salario_cotizado - (salario*0.19) - (uvt*10)
-        print("El Impuesto es del 19% + 10 UVts")
-        print("Su salario es: ")
-        print(salario_final)
-    elif base_impuestos > 150 and base_impuestos <= 360:
-        salario_final = salario_cotizado - (salario*0.28) - (uvt*10)
-        print("El Impuesto es del 28% + 10 UVts")
-        print("Su salario es: ")
-        print(salario_final)
-    elif base_impuestos > 360 and base_impuestos <= 640:
-        salario_final = salario_cotizado - (salario*0.33) - (uvt*69)
-        print("El Impuesto es del 33% + 69 UVts")
-        print("Su salario es: ")
-        print(salario_final)
-    elif base_impuestos > 640 and base_impuestos <= 945:
-        salario_final = salario_cotizado - (salario*0.35) - (uvt*162)
-        print("El Impuesto es del 35% + 162 UVts")
-        print("Su salario es: ")
-        print(salario_final)
-    elif base_impuestos > 945 and base_impuestos <= 2300:
-        salario_final = salario_cotizado - (salario*0.37) - (uvt*268)
-        print("El Impuesto es del 37% + 268 UVts")
-        print("Su salario es: ")
-        print(salario_final)
+        porcentaje_seguridad_social = 0.285
+        cotizacion = ibc * porcentaje_seguridad_social
+        auxilio_recibido = 0
     else:
-        salario_final = salario_cotizado - (salario*0.39) - (uvt*770)
-        print("El Impuesto es del 39% +770 UVTs")
-        print("Su salario es: ")
-        print(salario_final)
+        ibc = salario
+        porcentaje_seguridad_social = 0.08
+        cotizacion = ibc * porcentaje_seguridad_social
 
-elif tipo_de_salario == 1:
-    if base_impuestos <= 95:
-        print("El impuesto es de 0%")
-        print("Su salario final es: ")
-        print(salario_cotizado)
-    elif base_impuestos > 95 and base_impuestos <= 150: 
-        salario_final = salario_cotizado - (salario*0.19) - (uvt*10)
-        print("El Impuesto es del 19% + 10 UVts")
-        print("Su salario es: ")
-        print(salario_final)
-    elif base_impuestos > 150 and base_impuestos <= 360:
-        salario_final = salario_cotizado - (salario*0.28) - (uvt*10)
-        print("El Impuesto es del 28% + 10 UVts")
-        print("Su salario es: ")
-        print(salario_final)
-    elif base_impuestos > 360 and base_impuestos <= 640:
-        salario_final = salario_cotizado - (salario*0.33) - (uvt*69)
-        print("El Impuesto es del 33% + 69 UVts")
-        print("Su salario es: ")
-        print(salario_final)
-    elif base_impuestos > 640 and base_impuestos <= 945:
-        salario_final = salario_cotizado - (salario*0.35) - (uvt*162)
-        print("El Impuesto es del 35% + 162 UVts")
-        print("Su salario es: ")
-        print(salario_final)
-    elif base_impuestos > 945 and base_impuestos <= 2300:
-        salario_final = salario_cotizado - (salario*0.37) - (uvt*268)
-        print("El Impuesto es del 37% + 268 UVts")
-        print("Su salario es: ")
-        print(salario_final)
+        auxilio_recibido = AUX_TRANSPORTE if salario <= (2 * SMLMV) else 0
+
+    base_uvt = salario / UVT
+    impuesto_uvt = 0.0
+
+    if base_uvt <= 95:
+        tarifa = "0%"
+        impuesto_uvt = 0
+    elif base_uvt <= 150:
+        tarifa = "19%"
+        impuesto_uvt = (base_uvt - 95) * 0.19
+    elif base_uvt <= 360:
+        tarifa = "28%"
+        impuesto_uvt = (base_uvt - 150) * 0.28 + 10
+    elif base_uvt <= 640:
+        tarifa = "33%"
+        impuesto_uvt = (base_uvt - 360) * 0.33 + 69
+    elif base_uvt <= 945:
+        tarifa = "35%"
+        impuesto_uvt = (base_uvt - 640) * 0.35 + 162
+    elif base_uvt <= 2300:
+        tarifa = "37%"
+        impuesto_uvt = (base_uvt - 945) * 0.37 + 268
     else:
-        salario_final = salario_cotizado - (salario*0.39) - (uvt*770)
-        print("El Impuesto es del 39% +770 UVTs")
-        print("Su salario es: ")
-        print(salario_final)
-else:
-    print("No esta esta opción")
+        tarifa = "39%"
+        impuesto_uvt = (base_uvt - 2300) * 0.39 + 770
+
+    retencion_pesos = impuesto_uvt * UVT
+    salario_final = (salario - cotizacion - retencion_pesos) + auxilio_recibido
 
 
+    print("\n" + "="*40)
+    print("        RESUMEN DE TU NÓMINA (2026)      ")
+    print("="*40)
+    print(f"Tipo de Contrato:     {'Nominal' if tipo_de_salario == 1 else 'Prestación de Servicios'}")
+    print(f"Salario Bruto:        ${salario:,.2f}")
+    print(f"IBC calculado:        ${ibc:,.2f}")
+    print(f"Descuento Seg. Social:${cotizacion:,.2f}")
+    print(f"Auxilio Transporte:   ${auxilio_recibido:,.2f}")
+    print(f"Rango de Retención:   {tarifa}")
+    print(f"Retención en Fuente:  ${retencion_pesos:,.2f}")
+    print("-"*40)
+    print(f"SALARIO NETO A PAGAR: ${salario_final:,.2f}")
+    print("="*40)
 
-print(ibc)
+if __name__ == "__main__":
+    calcular_nomina_colombia()
